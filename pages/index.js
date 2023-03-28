@@ -1,115 +1,129 @@
-import Head from 'next/head';
-import styles from '../styles/Home.module.css';
+import React, { useState } from "react";
+import TextField from "@mui/material/TextField";
+import Autocomplete from "@mui/material/Autocomplete";
+import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+import JMESPath from "jmespath";
 
-export default function Home() {
+
+function getKeyList(obj, parentKey = null) {
+  let keyList = [];
+
+  for (const [key, value] of Object.entries(obj)) {
+    const currentKey = parentKey ? `${parentKey}.${key}` : key;
+
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        const nestedKey = `${currentKey}[${i}]`;
+        keyList.push(nestedKey);
+        if (typeof value[i] === "object" && value[i] !== null) {
+          keyList = keyList.concat(getKeyList(value[i], nestedKey));
+        }
+      }
+    } else if (typeof value === "object" && value !== null) {
+      keyList.push(currentKey);
+      keyList = keyList.concat(getKeyList(value, currentKey));
+    } else {
+      keyList.push(currentKey);
+    }
+  }
+
+  return keyList;
+}
+
+
+function buildQueryString(current, selected) {
+  let queryString = "";
+
+  if (selected) {
+    if (Array.isArray(selected)) {
+      queryString = queryString + "[*]." + selected.join(".");
+    } else {
+      queryString = queryString + selected;
+    }
+  } else {
+    queryString = "";
+  }
+
+  if (typeof current === "object" && current !== null) {
+    Object.keys(current).forEach((key) => {
+      const nested = buildQueryString(current[key], null);
+      if (nested !== "") {
+        queryString = queryString + (queryString === "" ? "" : ".") + key + nested;
+      }
+    });
+  }
+
+  return queryString;
+}
+
+export default function QueryBuilder() {
+  const [jsonInput, setJsonInput] = useState("");
+  const [selectedKey, setSelectedKey] = useState(null);
+  const [queryString, setQueryString] = useState("");
+
+  const handleJsonInputChange = (event) => {
+    setJsonInput(event.target.value);
+    setSelectedKey(null);
+    setQueryString("");
+  };
+
+  const handleKeySelect = (event, value) => {
+    setSelectedKey(value);
+    const qs = buildQueryString(JSON.parse(jsonInput), value)
+    setQueryString(qs + ": " + JSON.stringify(JMESPath.search(JSON.parse(jsonInput), qs)));
+    console.log(qs, "<kaksjk")
+    console.log(jsonInput, "<json")
+    console.log(JMESPath.search(JSON.parse(jsonInput), qs), "<asjkajd")
+  };
+
+  const handleClearButtonClick = () => {
+    setJsonInput("");
+    setSelectedKey(null);
+    setQueryString("");
+  };
+
+  const keyList = !!jsonInput && getKeyList(JSON.parse(jsonInput));
+
   return (
-    <div className={styles.container}>
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
+    <Box style={{ display: "flex", flexDirection: "column" }}>
+      <TextField
+        label="JSON Input"
+        multiline
+        rows={4}
+        variant="outlined"
+        value={jsonInput}
+        onChange={handleJsonInputChange}
+        fullWidth
+        style={{ marginBottom: "16px" }}
+      />
+      <Autocomplete
+        disabled={!jsonInput}
+        options={keyList}
+        value={selectedKey}
+        onChange={handleKeySelect}
+        renderInput={(params) => (
+          <TextField {...params} variant="outlined" />
+        )}
+        style={{ marginBottom: "16px" }}
 
-      <main>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
-
-        <p className={styles.description}>
-          Get started by editing <code>pages/index.js</code>
-        </p>
-
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h3>Documentation &rarr;</h3>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
-
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h3>Learn &rarr;</h3>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/master/examples"
-            className={styles.card}
-          >
-            <h3>Examples &rarr;</h3>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
-
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-          >
-            <h3>Deploy &rarr;</h3>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
-        </div>
-      </main>
-
-      <footer>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <img src="/vercel.svg" alt="Vercel" className={styles.logo} />
-        </a>
-      </footer>
-
-      <style jsx>{`
-        main {
-          padding: 5rem 0;
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-        }
-        footer {
-          width: 100%;
-          height: 100px;
-          border-top: 1px solid #eaeaea;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
-        footer img {
-          margin-left: 0.5rem;
-        }
-        footer a {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          text-decoration: none;
-          color: inherit;
-        }
-        code {
-          background: #fafafa;
-          border-radius: 5px;
-          padding: 0.75rem;
-          font-size: 1.1rem;
-          font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
-            DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
-        }
-      `}</style>
-
-      <style jsx global>{`
-        html,
-        body {
-          padding: 0;
-          margin: 0;
-          font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
-            Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
-            sans-serif;
-        }
-        * {
-          box-sizing: border-box;
-        }
-      `}</style>
-    </div>
-  )
+        fullWidth
+      />
+      <TextField
+        label="Generated Query String"
+        multiline
+        rows={4}
+        variant="outlined"
+        value={queryString}
+        fullWidth
+        style={{ marginBottom: "16px" }}
+        InputProps={{
+          readOnly: true,
+        }}
+      />
+      <Button variant="contained" onClick={handleClearButtonClick}>
+        Clear
+      </Button>
+    </Box>
+  );
 }
