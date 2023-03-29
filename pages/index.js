@@ -1,129 +1,172 @@
 import React, { useState } from "react";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
-import Button from "@mui/material/Button";
 import Box from "@mui/material/Box";
 import JMESPath from "jmespath";
+import JSONInput from "react-json-editor-ajrm/index";
+import locale from "react-json-editor-ajrm/locale/en";
+import Typography from "@mui/material/Typography";
+import Grid from "@mui/material/Grid";
+import FormControl from "@mui/material/FormControl";
+import FormLabel from "@mui/material/FormLabel";
 
 
 function getKeyList(obj, parentKey = null) {
-  let keyList = [];
+    let keyList = [];
 
-  for (const [key, value] of Object.entries(obj)) {
-    const currentKey = parentKey ? `${parentKey}.${key}` : key;
+    for (const [key, value] of Object.entries(obj)) {
+        const currentKey = parentKey ? `${parentKey}.${key}` : key;
 
-    if (Array.isArray(value)) {
-      for (let i = 0; i < value.length; i++) {
-        const nestedKey = `${currentKey}[${i}]`;
-        keyList.push(nestedKey);
-        if (typeof value[i] === "object" && value[i] !== null) {
-          keyList = keyList.concat(getKeyList(value[i], nestedKey));
+        if (Array.isArray(value)) {
+            keyList.push(currentKey); // add the key that contains the array
+            for (let i = 0; i < value.length; i++) {
+                const nestedKey = `${currentKey}[${i}]`;
+                keyList.push(nestedKey);
+                if (typeof value[i] === "object" && value[i] !== null) {
+                    keyList = keyList.concat(getKeyList(value[i], nestedKey));
+                }
+            }
+        } else if (typeof value === "object" && value !== null) {
+            keyList.push(currentKey);
+            keyList = keyList.concat(getKeyList(value, currentKey));
+        } else {
+            keyList.push(currentKey);
         }
-      }
-    } else if (typeof value === "object" && value !== null) {
-      keyList.push(currentKey);
-      keyList = keyList.concat(getKeyList(value, currentKey));
-    } else {
-      keyList.push(currentKey);
     }
-  }
 
-  return keyList;
+    return keyList;
 }
+
 
 
 function buildQueryString(current, selected) {
-  let queryString = "";
+    let queryString = "";
 
-  if (selected) {
-    if (Array.isArray(selected)) {
-      queryString = queryString + "[*]." + selected.join(".");
+    if (selected) {
+        if (Array.isArray(selected)) {
+            queryString = queryString + "[*]." + selected.join(".");
+        } else {
+            queryString = queryString + selected;
+        }
     } else {
-      queryString = queryString + selected;
+        queryString = "";
     }
-  } else {
-    queryString = "";
-  }
 
-  if (typeof current === "object" && current !== null) {
-    Object.keys(current).forEach((key) => {
-      const nested = buildQueryString(current[key], null);
-      if (nested !== "") {
-        queryString = queryString + (queryString === "" ? "" : ".") + key + nested;
-      }
-    });
-  }
+    if (typeof current === "object" && current !== null) {
+        Object.keys(current).forEach((key) => {
+            const nested = buildQueryString(current[key], null);
+            if (nested !== "") {
+                queryString = queryString + (queryString === "" ? "" : ".") + key + nested;
+            }
+        });
+    }
 
-  return queryString;
+    return queryString;
 }
 
+
 export default function QueryBuilder() {
-  const [jsonInput, setJsonInput] = useState("");
-  const [selectedKey, setSelectedKey] = useState(null);
-  const [queryString, setQueryString] = useState("");
+    const [jsonInput, setJsonInput] = useState("");
+    const [selectedKey, setSelectedKey] = useState(null);
+    const [queryString, setQueryString] = useState("");
 
-  const handleJsonInputChange = (event) => {
-    setJsonInput(event.target.value);
-    setSelectedKey(null);
-    setQueryString("");
-  };
+    const handleJsonInputChange = (event) => {
+        setJsonInput(event.jsObject);
+        setSelectedKey(null);
+        setQueryString("");
+    };
 
-  const handleKeySelect = (event, value) => {
-    setSelectedKey(value);
-    const qs = buildQueryString(JSON.parse(jsonInput), value)
-    setQueryString(qs + ": " + JSON.stringify(JMESPath.search(JSON.parse(jsonInput), qs)));
-    console.log(qs, "<kaksjk")
-    console.log(jsonInput, "<json")
-    console.log(JMESPath.search(JSON.parse(jsonInput), qs), "<asjkajd")
-  };
+    const handleKeySelect = (event, value) => {
+        setSelectedKey(value);
+        const qs = buildQueryString(jsonInput, value);
+        setQueryString({
+            query: qs,
+            value: JMESPath.search(jsonInput, qs),
+        });
+    };
 
-  const handleClearButtonClick = () => {
-    setJsonInput("");
-    setSelectedKey(null);
-    setQueryString("");
-  };
+    // const handleClearButtonClick = () => {
+    //     setJsonInput("");
+    //     setSelectedKey(null);
+    //     setQueryString("");
+    // };
 
-  const keyList = !!jsonInput && getKeyList(JSON.parse(jsonInput));
+    const keyList = !!jsonInput && getKeyList(jsonInput);
 
-  return (
-    <Box style={{ display: "flex", flexDirection: "column" }}>
-      <TextField
-        label="JSON Input"
-        multiline
-        rows={4}
-        variant="outlined"
-        value={jsonInput}
-        onChange={handleJsonInputChange}
-        fullWidth
-        style={{ marginBottom: "16px" }}
-      />
-      <Autocomplete
-        disabled={!jsonInput}
-        options={keyList}
-        value={selectedKey}
-        onChange={handleKeySelect}
-        renderInput={(params) => (
-          <TextField {...params} variant="outlined" />
-        )}
-        style={{ marginBottom: "16px" }}
+    return (
+        <>
+            <Box sx={{ flexGrow: 1 }}>
+                <Grid rowSpacing={1} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
+                    <Grid item xs={6} >
+                        <Typography variant="h4" gutterBottom component="div">
+                            JMESPath Query Generator
+                        </Typography>
+                    </Grid>
+                    <Grid item xs={6}   >
+                        <FormControl component="fieldset" fullWidth>
+                            <FormLabel>Input</FormLabel>
+                            <JSONInput
+                                locale={locale}
+                                placeholder={{
+                                    "locations": [
+                                        { "name": "Seattle", "state": "WA" },
+                                        { "name": "New York", "state": "NY" },
+                                        { "name": "Bellevue", "state": "WA" },
+                                        { "name": "Olympia", "state": "WA" }
+                                    ]
+                                }}
+                                onChange={handleJsonInputChange}
+                                height="550px"
+                                width="100%"
+                                theme="dark"
+                                style={{
+                                    body: {
+                                        fontSize: '16px',
+                                    },
+                                    marginBottom: "16px"
+                                }}
+                            />
+                        </FormControl>
+                    </Grid>
+                    <Grid item xs={6} >
+                        <Autocomplete
+                            disabled={!jsonInput}
+                            options={keyList}
+                            value={selectedKey}
+                            onChange={handleKeySelect}
+                            renderInput={(params) => (
+                                <TextField {...params} variant="outlined" label="Query Selector" />
+                            )}
+                            style={{ marginBottom: "16px", marginTop: "16px", width: "50%" }}
+                        />
+                    </Grid>
+                    <Grid item xs={6}  >
 
-        fullWidth
-      />
-      <TextField
-        label="Generated Query String"
-        multiline
-        rows={4}
-        variant="outlined"
-        value={queryString}
-        fullWidth
-        style={{ marginBottom: "16px" }}
-        InputProps={{
-          readOnly: true,
-        }}
-      />
-      <Button variant="contained" onClick={handleClearButtonClick}>
-        Clear
-      </Button>
-    </Box>
-  );
+
+                        <FormControl fullWidth>
+                            <FormLabel>Output</FormLabel>
+                            <JSONInput
+                                locale={locale}
+                                placeholder={
+                                    !!queryString
+                                        ? queryString
+                                        : { key: null, value: null }
+                                }
+                                onChange={handleJsonInputChange}
+                                height="550px"
+                                width="100%"
+                                theme="dark_vscode_tribute"
+                                style={{
+                                    body: {
+                                        fontSize: "16px",
+                                    },
+                                }}
+                                viewOnly={true}
+                            />
+                        </FormControl>
+                    </Grid>
+                </Grid>
+            </Box>
+        </>
+    );
 }
